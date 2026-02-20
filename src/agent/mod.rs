@@ -6,6 +6,8 @@ pub mod loop_;
 pub mod memory_loader;
 pub mod prompt;
 pub mod research;
+// brahmastra-fork: multi-agent routing
+pub mod router;
 
 #[cfg(test)]
 mod tests;

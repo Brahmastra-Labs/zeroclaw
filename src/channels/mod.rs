@@ -21,6 +21,8 @@ pub mod discord;
 pub mod email_channel;
 pub mod imessage;
 pub mod irc;
+// brahmastra-fork: ProxApi iMessage HTTP backend
+pub mod proxapi_imessage;
 #[cfg(feature = "channel-lark")]
 pub mod lark;
 pub mod linq;

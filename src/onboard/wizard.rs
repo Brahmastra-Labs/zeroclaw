@@ -198,6 +198,7 @@ pub async fn run_wizard(force: bool) -> Result<Config> {
         mcp: crate::config::schema::McpConfig::default(),
         model_support_vision: None,
         wasm: crate::config::WasmConfig::default(),
+        routing: None,
     };
 
     println!(
@@ -563,6 +564,7 @@ async fn run_quick_setup_with_home(
         mcp: crate::config::schema::McpConfig::default(),
         model_support_vision: None,
         wasm: crate::config::WasmConfig::default(),
+        routing: None,
     };
     if no_totp {
         config.security.otp.enabled = false;
@@ -4305,7 +4307,7 @@ fn setup_channels() -> Result<ChannelsConfig> {
                         .collect()
                 };
 
-                config.imessage = Some(IMessageConfig { allowed_contacts });
+                config.imessage = Some(IMessageConfig { allowed_contacts, ..Default::default() });
                 println!(
                     "  {} iMessage configured (contacts: {})",
                     style("✅").green().bold(),

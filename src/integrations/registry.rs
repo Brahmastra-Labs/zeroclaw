@@ -843,6 +843,7 @@ mod tests {
         let mut config = Config::default();
         config.channels_config.imessage = Some(IMessageConfig {
             allowed_contacts: vec!["*".into()],
+            ..Default::default()
         });
         let entries = all_integrations();
         let im = entries.iter().find(|e| e.name == "iMessage").unwrap();
