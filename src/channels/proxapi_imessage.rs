@@ -188,6 +188,7 @@ impl Channel for ProxApiIMessageChannel {
                                         .duration_since(std::time::UNIX_EPOCH)
                                         .map(|d| d.as_secs())
                                         .unwrap_or(0),
+                                    thread_ts: None,
                                 };
                                 if tx.send(msg).await.is_err() {
                                     return Ok(());

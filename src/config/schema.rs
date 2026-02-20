@@ -220,7 +220,7 @@ fn default_max_depth() -> u32 {
 // These types are specific to our fork and will not be submitted upstream.
 
 /// How the daemon dispatches incoming messages to agents.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RoutingMode {
     /// Single agent — all messages go to the one configured agent (default, backward-compatible).
@@ -231,7 +231,7 @@ pub enum RoutingMode {
 }
 
 /// Configuration for one named agent in multi-agent mode.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NamedAgentConfig {
     /// Unique name for this agent instance (e.g. "rocco", "jasmine").
     pub name: String,
@@ -260,7 +260,7 @@ pub struct NamedAgentConfig {
 }
 
 /// A binding rule that maps an inbound channel + sender to a named agent.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BindingConfig {
     /// Channel name filter ("imessage", "discord", "*" for any).
     #[serde(default)]
@@ -273,7 +273,7 @@ pub struct BindingConfig {
 }
 
 /// Top-level routing configuration attached to root `Config`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 pub struct RoutingConfig {
     /// Dispatch mode — `single` (default) or `named`.
     #[serde(default)]
@@ -2420,7 +2420,7 @@ pub struct WebhookConfig {
 // brahmastra-fork: iMessage backend selection ─────────────────────────────────
 
 /// Which backend drives iMessage sending + listening.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IMessageBackend {
     /// Use macOS AppleScript + chat.db polling (original upstream behaviour).
@@ -2433,7 +2433,7 @@ pub enum IMessageBackend {
 }
 
 /// iMessage channel configuration (macOS only).
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 pub struct IMessageConfig {
     /// Allowed iMessage contacts (phone numbers or email addresses). Empty = deny all.
     #[serde(default)]
@@ -3893,6 +3893,7 @@ default_temperature = 0.7
             peripherals: PeripheralsConfig::default(),
             agents: HashMap::new(),
             hardware: HardwareConfig::default(),
+            routing: None,
         };
 
         let toml_str = toml::to_string_pretty(&config).unwrap();
@@ -4048,6 +4049,7 @@ tool_dispatcher = "xml"
             peripherals: PeripheralsConfig::default(),
             agents: HashMap::new(),
             hardware: HardwareConfig::default(),
+            routing: None,
         };
 
         config.save().await.unwrap();
