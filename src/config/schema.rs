@@ -181,6 +181,12 @@ pub struct Config {
     /// Hardware configuration (wizard-driven physical world setup).
     #[serde(default)]
     pub hardware: HardwareConfig,
+
+    // brahmastra-fork: multi-agent routing (channel/sender → named agent)
+    /// Multi-agent routing configuration.
+    /// When absent (default), the daemon operates in single-agent mode — backward compatible.
+    #[serde(default)]
+    pub routing: Option<RoutingConfig>,
 }
 
 // ── Delegate Agents ──────────────────────────────────────────────
@@ -208,6 +214,80 @@ pub struct DelegateAgentConfig {
 
 fn default_max_depth() -> u32 {
     3
+}
+
+// brahmastra-fork: multi-agent routing types ──────────────────────────────────
+// These types are specific to our fork and will not be submitted upstream.
+
+/// How the daemon dispatches incoming messages to agents.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingMode {
+    /// Single agent — all messages go to the one configured agent (default, backward-compatible).
+    #[default]
+    Single,
+    /// Named agents — messages are routed to agents by channel/sender binding rules.
+    Named,
+}
+
+/// Configuration for one named agent in multi-agent mode.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NamedAgentConfig {
+    /// Unique name for this agent instance (e.g. "rocco", "jasmine").
+    pub name: String,
+    /// Provider name (e.g. "openrouter", "anthropic", "ollama").
+    pub provider: String,
+    /// LLM model string (e.g. "meta-llama/llama-3.1-8b-instruct").
+    pub model: String,
+    /// Optional system prompt override for this agent.
+    #[serde(default)]
+    pub system_prompt: Option<String>,
+    /// Optional API key override (plaintext — prefer api_key_env).
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// Optional env-var name that holds the API key (e.g. "ROCCO_API_KEY").
+    #[serde(default)]
+    pub api_key_env: Option<String>,
+    /// Workspace directory for this agent's files and SQLite memory.
+    #[serde(default)]
+    pub workspace_dir: Option<String>,
+    /// Path to this agent's session SQLite database.
+    #[serde(default)]
+    pub session_store: Option<String>,
+    /// Temperature override for this agent's LLM calls.
+    #[serde(default)]
+    pub temperature: Option<f64>,
+}
+
+/// A binding rule that maps an inbound channel + sender to a named agent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BindingConfig {
+    /// Channel name filter ("imessage", "discord", "*" for any).
+    #[serde(default)]
+    pub channel: Option<String>,
+    /// Sender identity filter (phone number, user ID, or "*" for any).
+    #[serde(default)]
+    pub account: Option<String>,
+    /// Name of the target agent (must match a `NamedAgentConfig.name`).
+    pub agent: String,
+}
+
+/// Top-level routing configuration attached to root `Config`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RoutingConfig {
+    /// Dispatch mode — `single` (default) or `named`.
+    #[serde(default)]
+    pub mode: RoutingMode,
+    /// Named agent definitions (used when mode = "named").
+    #[serde(default)]
+    pub agents: Vec<NamedAgentConfig>,
+    /// Binding rules evaluated in order; first match wins.
+    #[serde(default)]
+    pub bindings: Vec<BindingConfig>,
+    /// Default agent name to use when no binding matches.
+    /// In Single mode this names the implicit sole agent.
+    #[serde(default)]
+    pub default_agent: Option<String>,
 }
 
 // ── Hardware Config (wizard-driven) ─────────────────────────────
@@ -2337,11 +2417,37 @@ pub struct WebhookConfig {
     pub secret: Option<String>,
 }
 
+// brahmastra-fork: iMessage backend selection ─────────────────────────────────
+
+/// Which backend drives iMessage sending + listening.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum IMessageBackend {
+    /// Use macOS AppleScript + chat.db polling (original upstream behaviour).
+    #[default]
+    AppleScript,
+    /// Delegate to ProxApi's HTTP iMessage endpoints (`/v1/imessage/`).
+    /// brahmastra-fork: calls ProxApi — not upstreamable.
+    #[serde(rename = "proxapi")]
+    ProxApi,
+}
+
 /// iMessage channel configuration (macOS only).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IMessageConfig {
     /// Allowed iMessage contacts (phone numbers or email addresses). Empty = deny all.
+    #[serde(default)]
     pub allowed_contacts: Vec<String>,
+    // brahmastra-fork: ProxApi iMessage backend fields
+    /// Which backend to use (default: "apple_script" — fully backward-compatible).
+    #[serde(default)]
+    pub backend: IMessageBackend,
+    /// Base URL of the ProxApi server (used when backend = "proxapi").
+    #[serde(default)]
+    pub proxapi_url: Option<String>,
+    /// Bearer token for the ProxApi server (used when backend = "proxapi").
+    #[serde(default)]
+    pub proxapi_token: Option<String>,
 }
 
 /// Matrix channel configuration.
@@ -2757,6 +2863,7 @@ impl Default for Config {
             agents: HashMap::new(),
             hardware: HardwareConfig::default(),
             query_classification: QueryClassificationConfig::default(),
+            routing: None,
         }
     }
 }
@@ -4139,6 +4246,7 @@ tool_dispatcher = "xml"
     async fn imessage_config_serde() {
         let ic = IMessageConfig {
             allowed_contacts: vec!["+1234567890".into(), "user@icloud.com".into()],
+            ..Default::default()
         };
         let json = serde_json::to_string(&ic).unwrap();
         let parsed: IMessageConfig = serde_json::from_str(&json).unwrap();
@@ -4150,6 +4258,7 @@ tool_dispatcher = "xml"
     async fn imessage_config_empty_contacts() {
         let ic = IMessageConfig {
             allowed_contacts: vec![],
+            ..Default::default()
         };
         let json = serde_json::to_string(&ic).unwrap();
         let parsed: IMessageConfig = serde_json::from_str(&json).unwrap();
@@ -4160,6 +4269,7 @@ tool_dispatcher = "xml"
     async fn imessage_config_wildcard() {
         let ic = IMessageConfig {
             allowed_contacts: vec!["*".into()],
+            ..Default::default()
         };
         let toml_str = toml::to_string(&ic).unwrap();
         let parsed: IMessageConfig = toml::from_str(&toml_str).unwrap();
@@ -4276,6 +4386,7 @@ allowed_users = ["@ops:matrix.org"]
             webhook: None,
             imessage: Some(IMessageConfig {
                 allowed_contacts: vec!["+1".into()],
+                ..Default::default()
             }),
             matrix: Some(MatrixConfig {
                 homeserver: "https://m.org".into(),
