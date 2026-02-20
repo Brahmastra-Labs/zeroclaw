@@ -20,6 +20,8 @@ pub mod discord;
 pub mod email_channel;
 pub mod imessage;
 pub mod irc;
+// brahmastra-fork: ProxApi iMessage HTTP backend
+pub mod proxapi_imessage;
 pub mod lark;
 pub mod linq;
 #[cfg(feature = "channel-matrix")]
