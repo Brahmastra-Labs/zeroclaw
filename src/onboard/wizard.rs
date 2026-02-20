@@ -182,6 +182,7 @@ pub async fn run_wizard() -> Result<Config> {
         agents: std::collections::HashMap::new(),
         hardware: hardware_config,
         query_classification: crate::config::QueryClassificationConfig::default(),
+        routing: None,
     };
 
     println!(
@@ -401,6 +402,7 @@ pub async fn run_quick_setup(
         agents: std::collections::HashMap::new(),
         hardware: crate::config::HardwareConfig::default(),
         query_classification: crate::config::QueryClassificationConfig::default(),
+        routing: None,
     };
 
     config.save().await?;
@@ -3097,7 +3099,7 @@ fn setup_channels() -> Result<ChannelsConfig> {
                         .collect()
                 };
 
-                config.imessage = Some(IMessageConfig { allowed_contacts });
+                config.imessage = Some(IMessageConfig { allowed_contacts, ..Default::default() });
                 println!(
                     "  {} iMessage configured (contacts: {})",
                     style("✅").green().bold(),

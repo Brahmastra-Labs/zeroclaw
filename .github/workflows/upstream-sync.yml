@@ -1,0 +1,73 @@
+name: Upstream Sync
+
+# brahmastra-fork: Weekly rebase from zeroclaw-labs/zeroclaw upstream.
+# Opens a draft PR on conflict — never pushes directly to main.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Every Monday 06:00 UTC
+  workflow_dispatch:        # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/zeroclaw-labs/zeroclaw.git || true
+          git fetch upstream
+
+      - name: Create sync branch
+        run: |
+          BRANCH="brahmastra/upstream-sync-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          echo "SYNC_BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Rebase onto upstream/main
+        id: rebase
+        run: |
+          if git rebase upstream/main; then
+            echo "REBASE_OK=true" >> "$GITHUB_ENV"
+          else
+            echo "REBASE_OK=false" >> "$GITHUB_ENV"
+            git rebase --abort || true
+          fi
+
+      - name: Push sync branch
+        if: env.REBASE_OK == 'true'
+        run: git push origin "$SYNC_BRANCH" --force-with-lease
+
+      - name: Open draft PR (clean rebase)
+        if: env.REBASE_OK == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "chore(sync): upstream rebase $(date +%Y-%m-%d)" \
+            --body "Automated weekly rebase from \`zeroclaw-labs/zeroclaw\` upstream.
+
+          Review fork-specific patches below for conflicts before merging.
+
+          See \`docs/fork-maintenance.md\` for divergence map." \
+            --draft \
+            --base main \
+            --head "$SYNC_BRANCH"
+
+      - name: Notify on conflict
+        if: env.REBASE_OK == 'false'
+        run: |
+          echo "::warning::Rebase onto upstream/main has conflicts — manual intervention required."
+          echo "Run: git fetch upstream && git rebase upstream/main"
+          echo "Resolve conflicts in files listed in docs/fork-maintenance.md"
+          exit 1
